@@ -1,6 +1,6 @@
 import type { RuleClass } from "./types.js"
 
-import { ERBCommentSyntax } from "./rules/erb-comment-syntax.js";
+import { ERBCommentSyntax } from "./rules/erb-comment-syntax.js"
 import { ERBNoCaseNodeChildrenRule } from "./rules/erb-no-case-node-children.js"
 import { ERBNoEmptyTagsRule } from "./rules/erb-no-empty-tags.js"
 import { ERBNoExtraNewLineRule } from "./rules/erb-no-extra-newline.js"
@@ -9,6 +9,7 @@ import { ERBNoSilentTagInAttributeNameRule } from "./rules/erb-no-silent-tag-in-
 import { ERBPreferImageTagHelperRule } from "./rules/erb-prefer-image-tag-helper.js"
 import { ERBRequireTrailingNewlineRule } from "./rules/erb-require-trailing-newline.js"
 import { ERBRequireWhitespaceRule } from "./rules/erb-require-whitespace-inside-tags.js"
+import { ERBRubocopRule } from "./rules/erb-rubocop.js"
 import { ERBRightTrimRule } from "./rules/erb-right-trim.js"
 
 import { HTMLAnchorRequireHrefRule } from "./rules/html-anchor-require-href.js"
@@ -58,7 +59,7 @@ export const defaultRules: RuleClass[] = [
   ERBRequireTrailingNewlineRule,
   ERBRequireWhitespaceRule,
   ERBRightTrimRule,
-
+  ERBRubocopRule,
   HTMLAnchorRequireHrefRule,
   HTMLAriaAttributeMustBeValid,
   HTMLAriaLabelIsWellFormattedRule,
