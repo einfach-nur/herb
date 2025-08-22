@@ -1,0 +1,7 @@
+- [ ] Install `yay -S subunit`
+- [ ] Install `pacman -S --asdeps clang19`
+- [ ] Install `pacman -S --asdeps emscripten`
+- [ ] Set `PATH=/usr/lib/llvm19/bin:/usr/lib/emscripten/:$PATH` before every command (or export)
+- [ ] Execute `rake templates` before compiling
+- [ ] Run `make all` with PATH
+- [ ] Run `cd wasm && make` with PATH
