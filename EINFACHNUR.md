@@ -1,0 +1,8 @@
+- [ ] Install `yay -S --asdeps subunit`
+- [ ] Install `pacman -S --asdeps clang emscripten`
+- [ ] Set `PATH=/usr/lib/emscripten/:$PATH` before every command (or export)
+- [ ] Run `rake templates` before compiling
+- [ ] Run `make all` with PATH
+- [ ] Run `cd wasm && make` with PATH
+- [ ] Run `yarn`
+- [ ] Run `yarn build`

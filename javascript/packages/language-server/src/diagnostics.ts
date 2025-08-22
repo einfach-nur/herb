@@ -7,6 +7,8 @@ import { DocumentService } from "./document_service"
 import { ConfigService } from "./config_service"
 
 export class Diagnostics {
+  private debounceTimer: NodeJS.Timeout | null = null
+
   private readonly connection: Connection
   private readonly documentService: DocumentService
   private readonly parserService: ParserService
@@ -48,12 +50,20 @@ export class Diagnostics {
   }
 
   async refreshDocument(document: TextDocument) {
-    await this.validate(document)
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer)
+    }
+
+    this.debounceTimer = setTimeout(async () => {
+      await this.validate(document)
+    }, 250)
   }
 
   async refreshAllDocuments() {
     const documents = this.documentService.getAll()
-    await Promise.all(documents.map(document => this.refreshDocument(document)))
+    await Promise.all(
+      documents.map((document) => this.refreshDocument(document)),
+    )
   }
 
   private sendDiagnosticsFor(textDocument: TextDocument) {

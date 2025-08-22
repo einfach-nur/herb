@@ -1,7 +1,7 @@
 {
-  "name": "@herb-tools/language-server",
+  "name": "@herb-tools/rubocop",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "javascript/packages/language-server/src",
+  "sourceRoot": "javascript/packages/rubocop/src",
   "projectType": "library",
   "targets": {
     "build": {
@@ -9,15 +9,7 @@
       "options": {
         "script": "build"
       },
-      "dependsOn": [
-        "@herb-tools/config:build",
-        "@herb-tools/core:build",
-        "@herb-tools/linter:build",
-        "@herb-tools/node-wasm:build",
-        "@herb-tools/node:build",
-        "@herb-tools/formatter:build",
-        "@herb-tools/printer:build"
-      ]
+      "dependsOn": ["@herb-tools/core:build"]
     },
     "test": {
       "executor": "nx:run-script",

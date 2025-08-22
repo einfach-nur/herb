@@ -14,7 +14,8 @@
         "@herb-tools/core:build",
         "@herb-tools/node-wasm:build",
         "@herb-tools/printer:build",
-        "@herb-tools/rewriter:build"
+        "@herb-tools/rewriter:build",
+        "@herb-tools/rubocop:build"
       ]
     },
     "test": {
