@@ -1,6 +1,7 @@
 - [ ] Install `yay -S subunit`
 - [ ] Install `pacman -S --asdeps clang19`
 - [ ] Install `pacman -S --asdeps emscripten`
+- [ ] `sudo ln -s /usr/lib/emscripten/emar.py /usr/lib/emscripten/emar` (because the arch emscripten package does not have /usr/lib/emscripten/emar)
 - [ ] Set `PATH=/usr/lib/llvm19/bin:/usr/lib/emscripten/:$PATH` before every command (or export)
 - [ ] Execute `rake templates` before compiling
 - [ ] Run `make all` with PATH
