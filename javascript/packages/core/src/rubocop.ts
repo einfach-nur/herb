@@ -80,7 +80,6 @@ export class Rubocop {
     }
 
     static offenses(node: Node): RubocopOffense[] {
-        console.log("test")
         const visitor = new ExtractRubyVisitor()
         visitor.visit(node)
         if (!visitor.source) {
@@ -142,7 +141,7 @@ export class Rubocop {
             }
             offenses.push({
                 location: offenseLocation,
-                message: offenseJSON.messagem,
+                message: offenseJSON.message,
                 severity: offenseJSON.severity,
                 corrections: corrections,
             })

@@ -49,6 +49,7 @@ describe("ERBRubocopRule", () => {
         expect(lintResult.offenses).toHaveLength(1)
         expect(lintResult.offenses[0].code).toBe("erb-rubocop")
 
+        expect(lintResult.offenses[0].message.split(":")[0]).toBe("Style/StringLiterals")
         expect(lintResult.offenses[0].location.start.line).toBe(1)
         expect(lintResult.offenses[0].location.start.column).toBe(8)
         expect(lintResult.offenses[0].location.end.line).toBe(1)
