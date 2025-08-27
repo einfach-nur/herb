@@ -11,6 +11,18 @@ describe("ERBRubocopRule", () => {
         await Herb.load()
     })
 
+    test("does not fail if no ruby", () => {
+        const html = dedent`
+            <h1>Lol</h1>
+        `
+        const linter = new Linter(Herb, [ERBRubocopRule])
+        const lintResult = linter.lint(html)
+
+        expect(lintResult.errors).toBe(0)
+        expect(lintResult.warnings).toBe(0)
+        expect(lintResult.offenses).toHaveLength(0)
+    })
+
     test("valid case", () => {
         const html = dedent`
             <h1>
@@ -39,7 +51,6 @@ describe("ERBRubocopRule", () => {
         expect(lintResult.offenses[0].location.start.column).toBe(8)
         expect(lintResult.offenses[0].location.end.line).toBe(1)
         expect(lintResult.offenses[0].location.end.column).toBe(15)
-
     })
 
     test("two offenses", () => {
@@ -62,7 +73,6 @@ describe("ERBRubocopRule", () => {
         expect(lintResult.offenses[1].location.start.column).toBe(7)
         expect(lintResult.offenses[1].location.end.line).toBe(2)
         expect(lintResult.offenses[1].location.end.column).toBe(18)
-
     })
 
     //TODO: decide on indentation style or ignore rubocop rule

@@ -6,3 +6,4 @@
 - [ ] Execute `rake templates` before compiling
 - [ ] Run `make all` with PATH
 - [ ] Run `cd wasm && make` with PATH
+- [ ] Run `yarn`

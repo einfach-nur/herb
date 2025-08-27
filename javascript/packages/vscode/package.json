@@ -71,6 +71,7 @@
               "erb-require-whitespace-inside-tags",
               "erb-require-trailing-newline",
               "erb-right-trim",
+              "erb-rubocop",
               "html-anchor-require-href",
               "html-aria-attribute-must-be-valid",
               "html-aria-label-is-well-formatted",
