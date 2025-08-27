@@ -12,6 +12,7 @@ import {
   isCommentNode,
   isERBControlFlowNode,
   filterNodes,
+  Rubocop,
 } from "@herb-tools/core"
 
 import { Printer, IdentityPrinter } from "@herb-tools/printer"
@@ -91,10 +92,10 @@ import {
   ERBInNode,
   XMLDeclarationNode,
   CDATANode,
-  Token
+  Token,
 } from "@herb-tools/core"
 
-import type { ERBNode } from "@herb-tools/core"
+import type { ERBNode, RubocopCorrection } from "@herb-tools/core"
 import type { FormatOptions } from "./options.js"
 
 /**
@@ -120,7 +121,11 @@ export class FormatPrinter extends Printer {
   private inlineMode: boolean = false
   private currentAttributeName: string | null = null
   private elementStack: HTMLElementNode[] = []
-  private elementFormattingAnalysis = new Map<HTMLElementNode, ElementFormattingAnalysis>()
+  private elementFormattingAnalysis = new Map<
+    HTMLElementNode,
+    ElementFormattingAnalysis
+  >()
+  private rubocopCorrections: RubocopCorrection[] = []
 
   public source: string
 
@@ -141,6 +146,7 @@ export class FormatPrinter extends Printer {
     this.lines = []
     this.indentLevel = 0
 
+    this.rubocopCorrections = Rubocop.corrections(node)
     this.visit(node)
 
     return this.lines.join("\n")
@@ -150,7 +156,9 @@ export class FormatPrinter extends Printer {
    * Get the current element (top of stack)
    */
   private get currentElement(): HTMLElementNode | null {
-    return this.elementStack.length > 0 ? this.elementStack[this.elementStack.length - 1] : null
+    return this.elementStack.length > 0
+      ? this.elementStack[this.elementStack.length - 1]
+      : null
   }
 
   /**
@@ -265,10 +273,13 @@ export class FormatPrinter extends Printer {
   /**
    * Count total attributes including those inside ERB conditionals
    */
-  private getTotalAttributeCount(attributes: HTMLAttributeNode[], inlineNodes: Node[] = []): number {
+  private getTotalAttributeCount(
+    attributes: HTMLAttributeNode[],
+    inlineNodes: Node[] = [],
+  ): number {
     let totalAttributeCount = attributes.length
 
-    inlineNodes.forEach(node => {
+    inlineNodes.forEach((node) => {
       if (isERBControlFlowNode(node)) {
         const capturedNodes = this.captureNodes(() => this.visit(node))
         const attributeNodes = filterNodes(capturedNodes, HTMLAttributeNode)
@@ -284,7 +295,9 @@ export class FormatPrinter extends Printer {
    * Extract inline nodes (non-attribute, non-whitespace) from a list of nodes
    */
   private extractInlineNodes(nodes: Node[]): Node[] {
-    return nodes.filter(child => isNoneOf(child, HTMLAttributeNode, WhitespaceNode))
+    return nodes.filter((child) =>
+      isNoneOf(child, HTMLAttributeNode, WhitespaceNode),
+    )
   }
 
   /**
@@ -306,19 +319,23 @@ export class FormatPrinter extends Printer {
     parentElement: HTMLElementNode | null,
     siblings: Node[],
     currentIndex: number,
-    hasExistingSpacing: boolean
+    hasExistingSpacing: boolean,
   ): boolean {
     if (hasExistingSpacing) {
       return true
     }
 
-    const hasMixedContent = siblings.some(child => isNode(child, HTMLTextNode) && child.content.trim() !== "")
+    const hasMixedContent = siblings.some(
+      (child) => isNode(child, HTMLTextNode) && child.content.trim() !== "",
+    )
 
     if (hasMixedContent) {
       return false
     }
 
-    const meaningfulSiblings = siblings.filter(child => isNonWhitespaceNode(child))
+    const meaningfulSiblings = siblings.filter((child) =>
+      isNonWhitespaceNode(child),
+    )
 
     if (meaningfulSiblings.length < SPACING_THRESHOLD) {
       return false
@@ -330,21 +347,30 @@ export class FormatPrinter extends Printer {
       return false
     }
 
-    const isSpaceableContainer = !parentTagName || (parentTagName && SPACEABLE_CONTAINERS.has(parentTagName))
+    const isSpaceableContainer =
+      !parentTagName ||
+      (parentTagName && SPACEABLE_CONTAINERS.has(parentTagName))
 
     if (!isSpaceableContainer && meaningfulSiblings.length < 5) {
       return false
     }
 
     const currentNode = siblings[currentIndex]
-    const previousMeaningfulIndex = findPreviousMeaningfulSibling(siblings, currentIndex)
+    const previousMeaningfulIndex = findPreviousMeaningfulSibling(
+      siblings,
+      currentIndex,
+    )
     const isCurrentComment = isCommentNode(currentNode)
 
     if (previousMeaningfulIndex !== -1) {
       const previousNode = siblings[previousMeaningfulIndex]
       const isPreviousComment = isCommentNode(previousNode)
 
-      if (isPreviousComment && !isCurrentComment && (isNode(currentNode, HTMLElementNode) || isERBNode(currentNode))) {
+      if (
+        isPreviousComment &&
+        !isCurrentComment &&
+        (isNode(currentNode, HTMLElementNode) || isERBNode(currentNode))
+      ) {
         return false
       }
 
@@ -364,13 +390,14 @@ export class FormatPrinter extends Printer {
         return false
       }
 
-      if (currentTagName === 'a' && parentTagName === 'nav') {
+      if (currentTagName === "a" && parentTagName === "nav") {
         return false
       }
     }
 
     const isBlockElement = isBlockLevelNode(currentNode)
-    const isERBBlock = isERBNode(currentNode) && isERBControlFlowNode(currentNode)
+    const isERBBlock =
+      isERBNode(currentNode) && isERBControlFlowNode(currentNode)
     const isComment = isCommentNode(currentNode)
 
     return isBlockElement || isERBBlock || isComment
@@ -380,7 +407,10 @@ export class FormatPrinter extends Printer {
    * Check if we're currently processing a token list attribute that needs spacing
    */
   private get isInTokenListAttribute(): boolean {
-    return this.currentAttributeName !== null && TOKEN_LIST_ATTRIBUTES.has(this.currentAttributeName)
+    return (
+      this.currentAttributeName !== null &&
+      TOKEN_LIST_ATTRIBUTES.has(this.currentAttributeName)
+    )
   }
 
   /**
@@ -389,7 +419,7 @@ export class FormatPrinter extends Printer {
   private renderAttributesString(attributes: HTMLAttributeNode[]): string {
     if (attributes.length === 0) return ""
 
-    return ` ${attributes.map(attribute => this.renderAttribute(attribute)).join(" ")}`
+    return ` ${attributes.map((attribute) => this.renderAttribute(attribute)).join(" ")}`
   }
 
   /**
@@ -402,7 +432,7 @@ export class FormatPrinter extends Printer {
     maxLineLength: number = this.maxLineLength,
     hasComplexERB: boolean = false,
     hasMultilineAttributes: boolean = false,
-    attributes: HTMLAttributeNode[] = []
+    attributes: HTMLAttributeNode[] = [],
   ): boolean {
     if (hasComplexERB || hasMultilineAttributes) return false
 
@@ -414,9 +444,12 @@ export class FormatPrinter extends Printer {
       const attribute = attributes[0]
       const attributeName = this.getAttributeName(attribute)
 
-      if (attributeName === 'class') {
+      if (attributeName === "class") {
         const attributeValue = this.getAttributeValue(attribute)
-        const wouldBeMultiline = this.wouldClassAttributeBeMultiline(attributeValue, indentLength)
+        const wouldBeMultiline = this.wouldClassAttributeBeMultiline(
+          attributeValue,
+          indentLength,
+        )
 
         if (!wouldBeMultiline) {
           return true
@@ -426,19 +459,28 @@ export class FormatPrinter extends Printer {
       }
     }
 
-    if (totalAttributeCount > 3 || inlineLength + indentLength > maxLineLength) {
+    if (
+      totalAttributeCount > 3 ||
+      inlineLength + indentLength > maxLineLength
+    ) {
       return false
     }
 
     return true
   }
 
-  private wouldClassAttributeBeMultiline(content: string, indentLength: number): boolean {
-    const normalizedContent = content.replace(/\s+/g, ' ').trim()
+  private wouldClassAttributeBeMultiline(
+    content: string,
+    indentLength: number,
+  ): boolean {
+    const normalizedContent = content.replace(/\s+/g, " ").trim()
     const hasActualNewlines = /\r?\n/.test(content)
 
     if (hasActualNewlines && normalizedContent.length > 80) {
-      const lines = content.split(/\r?\n/).map(line => line.trim()).filter(line => line)
+      const lines = content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line)
 
       if (lines.length > 1) {
         return true
@@ -448,12 +490,15 @@ export class FormatPrinter extends Printer {
     const attributeLine = `class="${normalizedContent}"`
     const currentIndent = indentLength
 
-    if (currentIndent + attributeLine.length > this.maxLineLength && normalizedContent.length > 60) {
+    if (
+      currentIndent + attributeLine.length > this.maxLineLength &&
+      normalizedContent.length > 60
+    ) {
       if (/<%[^%]*%>/.test(normalizedContent)) {
         return false
       }
 
-      const classes = normalizedContent.split(' ')
+      const classes = normalizedContent.split(" ")
       const lines = this.breakTokensIntoLines(classes, currentIndent)
       return lines.length > 1
     }
@@ -469,22 +514,30 @@ export class FormatPrinter extends Printer {
   // TOOD: extract to core or reuse function from core
   private getAttributeValue(attribute: HTMLAttributeNode): string {
     if (isNode(attribute.value, HTMLAttributeValueNode)) {
-      return attribute.value.children.map(child => isNode(child, HTMLTextNode) ? child.content : IdentityPrinter.print(child)).join('')
+      return attribute.value.children
+        .map((child) =>
+          isNode(child, HTMLTextNode)
+            ? child.content
+            : IdentityPrinter.print(child),
+        )
+        .join("")
     }
 
-    return ''
+    return ""
   }
 
   private hasMultilineAttributes(attributes: HTMLAttributeNode[]): boolean {
-    return attributes.some(attribute => {
+    return attributes.some((attribute) => {
       if (isNode(attribute.value, HTMLAttributeValueNode)) {
         const content = getCombinedStringFromNodes(attribute.value.children)
 
         if (/\r?\n/.test(content)) {
-          const name = attribute.name ? getCombinedAttributeName(attribute.name) : ""
+          const name = attribute.name
+            ? getCombinedAttributeName(attribute.name)
+            : ""
 
           if (name === "class") {
-            const normalizedContent = content.replace(/\s+/g, ' ').trim()
+            const normalizedContent = content.replace(/\s+/g, " ").trim()
 
             return normalizedContent.length > 80
           }
@@ -492,7 +545,7 @@ export class FormatPrinter extends Printer {
           const lines = content.split(/\r?\n/)
 
           if (lines.length > 1) {
-            return lines.slice(1).some(line => /^\s+/.test(line))
+            return lines.slice(1).some((line) => /^\s+/.test(line))
           }
         }
       }
@@ -501,52 +554,80 @@ export class FormatPrinter extends Printer {
     })
   }
 
-  private formatClassAttribute(content: string, name: string, equals: string, open_quote: string, close_quote: string): string {
-    const normalizedContent = content.replace(/\s+/g, ' ').trim()
+  private formatClassAttribute(
+    content: string,
+    name: string,
+    equals: string,
+    open_quote: string,
+    close_quote: string,
+  ): string {
+    const normalizedContent = content.replace(/\s+/g, " ").trim()
     const hasActualNewlines = /\r?\n/.test(content)
 
     if (hasActualNewlines && normalizedContent.length > 80) {
-      const lines = content.split(/\r?\n/).map(line => line.trim()).filter(line => line)
+      const lines = content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line)
 
       if (lines.length > 1) {
-        return open_quote + this.formatMultilineAttributeValue(lines) + close_quote
+        return (
+          open_quote + this.formatMultilineAttributeValue(lines) + close_quote
+        )
       }
     }
 
     const currentIndent = this.indentLevel * this.indentWidth
     const attributeLine = `${name}${equals}${open_quote}${normalizedContent}${close_quote}`
 
-    if (currentIndent + attributeLine.length > this.maxLineLength && normalizedContent.length > 60) {
+    if (
+      currentIndent + attributeLine.length > this.maxLineLength &&
+      normalizedContent.length > 60
+    ) {
       if (/<%[^%]*%>/.test(normalizedContent)) {
         return open_quote + normalizedContent + close_quote
       }
 
-      const classes = normalizedContent.split(' ')
+      const classes = normalizedContent.split(" ")
       const lines = this.breakTokensIntoLines(classes, currentIndent)
 
       if (lines.length > 1) {
-        return open_quote + this.formatMultilineAttributeValue(lines) + close_quote
+        return (
+          open_quote + this.formatMultilineAttributeValue(lines) + close_quote
+        )
       }
     }
 
     return open_quote + normalizedContent + close_quote
   }
 
-  private isFormattableAttribute(attributeName: string, tagName: string): boolean {
-    const globalFormattable = FORMATTABLE_ATTRIBUTES['*'] || []
-    const tagSpecificFormattable = FORMATTABLE_ATTRIBUTES[tagName.toLowerCase()] || []
+  private isFormattableAttribute(
+    attributeName: string,
+    tagName: string,
+  ): boolean {
+    const globalFormattable = FORMATTABLE_ATTRIBUTES["*"] || []
+    const tagSpecificFormattable =
+      FORMATTABLE_ATTRIBUTES[tagName.toLowerCase()] || []
 
-    return globalFormattable.includes(attributeName) || tagSpecificFormattable.includes(attributeName)
+    return (
+      globalFormattable.includes(attributeName) ||
+      tagSpecificFormattable.includes(attributeName)
+    )
   }
 
-  private formatMultilineAttribute(content: string, name: string, open_quote: string, close_quote: string): string {
-    if (name === 'srcset' || name === 'sizes') {
-      const normalizedContent = content.replace(/\s+/g, ' ').trim()
+  private formatMultilineAttribute(
+    content: string,
+    name: string,
+    open_quote: string,
+    close_quote: string,
+  ): string {
+    if (name === "srcset" || name === "sizes") {
+      const normalizedContent = content.replace(/\s+/g, " ").trim()
 
       return open_quote + normalizedContent + close_quote
     }
 
-    const lines = content.split('\n')
+    const lines = content.split("\n")
 
     if (lines.length <= 1) {
       return open_quote + content + close_quote
@@ -561,17 +642,23 @@ export class FormatPrinter extends Printer {
     const indent = " ".repeat((this.indentLevel + 1) * this.indentWidth)
     const closeIndent = " ".repeat(this.indentLevel * this.indentWidth)
 
-    return "\n" + lines.map(line => indent + line).join("\n") + "\n" + closeIndent
+    return (
+      "\n" + lines.map((line) => indent + line).join("\n") + "\n" + closeIndent
+    )
   }
 
-  private breakTokensIntoLines(tokens: string[], currentIndent: number, separator: string = ' '): string[] {
+  private breakTokensIntoLines(
+    tokens: string[],
+    currentIndent: number,
+    separator: string = " ",
+  ): string[] {
     const lines: string[] = []
-    let currentLine = ''
+    let currentLine = ""
 
     for (const token of tokens) {
       const testLine = currentLine ? currentLine + separator + token : token
 
-      if (testLine.length > (this.maxLineLength - currentIndent - 6)) {
+      if (testLine.length > this.maxLineLength - currentIndent - 6) {
         if (currentLine) {
           lines.push(currentLine)
           currentLine = token
@@ -591,11 +678,15 @@ export class FormatPrinter extends Printer {
   /**
    * Render multiline attributes for a tag
    */
-  private renderMultilineAttributes(tagName: string, allChildren: Node[] = [], isSelfClosing: boolean = false,) {
+  private renderMultilineAttributes(
+    tagName: string,
+    allChildren: Node[] = [],
+    isSelfClosing: boolean = false,
+  ) {
     this.pushWithIndent(`<${tagName}`)
 
     this.withIndent(() => {
-      allChildren.forEach(child => {
+      allChildren.forEach((child) => {
         if (isNode(child, HTMLAttributeNode)) {
           this.pushWithIndent(this.renderAttribute(child))
         } else if (!isNode(child, WhitespaceNode)) {
@@ -615,10 +706,38 @@ export class FormatPrinter extends Printer {
    * Reconstruct the text representation of an ERB node
    * @param withFormatting - if true, format the content; if false, preserve original
    */
-  private reconstructERBNode(node: ERBNode, withFormatting: boolean = true): string {
+  private reconstructERBNode(
+    node: ERBNode,
+    withFormatting: boolean = true,
+  ): string {
     const open = node.tag_opening?.value ?? ""
     const close = node.tag_closing?.value ?? ""
-    const content = node.content?.value ?? ""
+    let content = node.content?.value ?? ""
+
+    // claimed by einfach-nur
+    let relevantCorrections: any[] = []
+    if (node.content) {
+      for (const correction of this.rubocopCorrections) {
+        if (
+          correction.location.start.line >= node.content.location.start.line &&
+          correction.location.end.line <= node.content.location.end.line
+        ) {
+          content =
+            content.slice(
+              0,
+              correction.location.start.column -
+                node.content.location.start.column,
+            ) +
+            correction.replacement +
+            content.slice(
+              correction.location.end.column -
+                node.content.location.start.column,
+            )
+        }
+      }
+    }
+    // claimed by einfach-nur end
+
     const inner = withFormatting ? this.formatERBContent(content) : content
 
     return open + inner + close
@@ -660,7 +779,11 @@ export class FormatPrinter extends Printer {
         continue
       }
 
-      if (isNonWhitespaceNode(child) && lastWasMeaningful && !hasHandledSpacing) {
+      if (
+        isNonWhitespaceNode(child) &&
+        lastWasMeaningful &&
+        !hasHandledSpacing
+      ) {
         this.push("")
       }
 
@@ -675,7 +798,10 @@ export class FormatPrinter extends Printer {
 
   visitHTMLElementNode(node: HTMLElementNode) {
     this.elementStack.push(node)
-    this.elementFormattingAnalysis.set(node, this.analyzeElementFormatting(node))
+    this.elementFormattingAnalysis.set(
+      node,
+      this.analyzeElementFormatting(node),
+    )
 
     this.visit(node.open_tag)
 
@@ -692,12 +818,14 @@ export class FormatPrinter extends Printer {
 
   visitHTMLElementBody(body: Node[], element: HTMLElementNode) {
     if (isContentPreserving(element)) {
-      element.body.map(child => {
+      element.body.map((child) => {
         if (isNode(child, HTMLElementNode)) {
           const wasInlineMode = this.inlineMode
           this.inlineMode = true
 
-          const formattedElement = this.capture(() => this.visit(child)).join("")
+          const formattedElement = this.capture(() => this.visit(child)).join(
+            "",
+          )
           this.pushToLastLine(formattedElement)
 
           this.inlineMode = wasInlineMode
@@ -722,24 +850,24 @@ export class FormatPrinter extends Printer {
       this.inlineMode = true
 
       const lines = this.capture(() => {
-        nodesToRender.forEach(child => {
+        nodesToRender.forEach((child) => {
           if (isNode(child, HTMLTextNode)) {
             if (hasTextFlow) {
-              const normalizedContent = child.content.replace(/\s+/g, ' ')
+              const normalizedContent = child.content.replace(/\s+/g, " ")
 
-              if (normalizedContent && normalizedContent !== ' ') {
+              if (normalizedContent && normalizedContent !== " ") {
                 this.push(normalizedContent)
-              } else if (normalizedContent === ' ') {
-                this.push(' ')
+              } else if (normalizedContent === " ") {
+                this.push(" ")
               }
             } else {
-              const normalizedContent = child.content.replace(/\s+/g, ' ')
+              const normalizedContent = child.content.replace(/\s+/g, " ")
               const trimmedContent = normalizedContent.trim()
 
               if (trimmedContent) {
                 this.push(trimmedContent)
-              } else if (normalizedContent === ' ') {
-                this.push(' ')
+              } else if (normalizedContent === " ") {
+                this.push(" ")
               }
             }
           } else if (isNode(child, WhitespaceNode)) {
@@ -750,8 +878,10 @@ export class FormatPrinter extends Printer {
         })
       })
 
-      const content = lines.join('')
-      const inlineContent = hasTextFlow ? content.replace(/\s+/g, ' ').trim() : content.trim()
+      const content = lines.join("")
+      const inlineContent = hasTextFlow
+        ? content.replace(/\s+/g, " ").trim()
+        : content.trim()
 
       if (inlineContent) {
         this.pushToLastLine(inlineContent)
@@ -776,7 +906,10 @@ export class FormatPrinter extends Printer {
   /**
    * Visit element children with intelligent spacing logic
    */
-  private visitElementChildren(body: Node[], parentElement: HTMLElementNode | null) {
+  private visitElementChildren(
+    body: Node[],
+    parentElement: HTMLElementNode | null,
+  ) {
     let lastWasMeaningful = false
     let hasHandledSpacing = false
 
@@ -787,12 +920,18 @@ export class FormatPrinter extends Printer {
         const isWhitespaceOnly = child.content.trim() === ""
 
         if (isWhitespaceOnly) {
-          const hasPreviousNonWhitespace = i > 0 && isNonWhitespaceNode(body[i - 1])
-          const hasNextNonWhitespace = i < body.length - 1 && isNonWhitespaceNode(body[i + 1])
+          const hasPreviousNonWhitespace =
+            i > 0 && isNonWhitespaceNode(body[i - 1])
+          const hasNextNonWhitespace =
+            i < body.length - 1 && isNonWhitespaceNode(body[i + 1])
 
-          const hasMultipleNewlines = child.content.includes('\n\n')
+          const hasMultipleNewlines = child.content.includes("\n\n")
 
-          if (hasPreviousNonWhitespace && hasNextNonWhitespace && hasMultipleNewlines) {
+          if (
+            hasPreviousNonWhitespace &&
+            hasNextNonWhitespace &&
+            hasMultipleNewlines
+          ) {
             this.push("")
             hasHandledSpacing = true
           }
@@ -801,15 +940,24 @@ export class FormatPrinter extends Printer {
         }
       }
 
-      if (isNonWhitespaceNode(child) && lastWasMeaningful && !hasHandledSpacing) {
+      if (
+        isNonWhitespaceNode(child) &&
+        lastWasMeaningful &&
+        !hasHandledSpacing
+      ) {
         const element = body[i - 1]
-        const hasExistingSpacing = i > 0 && isNode(element, HTMLTextNode) && element.content.trim() === "" && (element.content.includes('\n\n') || element.content.split('\n').length > 2)
+        const hasExistingSpacing =
+          i > 0 &&
+          isNode(element, HTMLTextNode) &&
+          element.content.trim() === "" &&
+          (element.content.includes("\n\n") ||
+            element.content.split("\n").length > 2)
 
         const shouldAddSpacing = this.shouldAddSpacingBetweenSiblings(
           parentElement,
           body,
           i,
-          hasExistingSpacing
+          hasExistingSpacing,
         )
 
         if (shouldAddSpacing) {
@@ -831,23 +979,45 @@ export class FormatPrinter extends Printer {
     const inlineNodes = this.extractInlineNodes(node.children)
     const isSelfClosing = node.tag_closing?.value === "/>"
 
-    if (this.currentElement && this.elementFormattingAnalysis.has(this.currentElement)) {
+    if (
+      this.currentElement &&
+      this.elementFormattingAnalysis.has(this.currentElement)
+    ) {
       const analysis = this.elementFormattingAnalysis.get(this.currentElement)!
 
       if (analysis.openTagInline) {
-        const inline = this.renderInlineOpen(getTagName(node), attributes, isSelfClosing, inlineNodes, node.children)
+        const inline = this.renderInlineOpen(
+          getTagName(node),
+          attributes,
+          isSelfClosing,
+          inlineNodes,
+          node.children,
+        )
 
         this.push(this.inlineMode ? inline : this.indent + inline)
         return
       } else {
-        this.renderMultilineAttributes(getTagName(node), node.children, isSelfClosing)
+        this.renderMultilineAttributes(
+          getTagName(node),
+          node.children,
+          isSelfClosing,
+        )
 
         return
       }
     }
 
-    const inline = this.renderInlineOpen(getTagName(node), attributes, isSelfClosing, inlineNodes, node.children)
-    const totalAttributeCount = this.getTotalAttributeCount(attributes, inlineNodes)
+    const inline = this.renderInlineOpen(
+      getTagName(node),
+      attributes,
+      isSelfClosing,
+      inlineNodes,
+      node.children,
+    )
+    const totalAttributeCount = this.getTotalAttributeCount(
+      attributes,
+      inlineNodes,
+    )
     const shouldKeepInline = this.shouldRenderInline(
       totalAttributeCount,
       inline.length,
@@ -855,19 +1025,25 @@ export class FormatPrinter extends Printer {
       this.maxLineLength,
       false,
       this.hasMultilineAttributes(attributes),
-      attributes
+      attributes,
     )
 
     if (shouldKeepInline) {
       this.push(this.inlineMode ? inline : this.indent + inline)
     } else {
-      this.renderMultilineAttributes(getTagName(node), node.children, isSelfClosing)
+      this.renderMultilineAttributes(
+        getTagName(node),
+        node.children,
+        isSelfClosing,
+      )
     }
   }
 
   visitHTMLCloseTagNode(node: HTMLCloseTagNode) {
     const closingTag = IdentityPrinter.print(node)
-    const analysis = this.currentElement && this.elementFormattingAnalysis.get(this.currentElement)
+    const analysis =
+      this.currentElement &&
+      this.elementFormattingAnalysis.get(this.currentElement)
     const closeTagInline = analysis?.closeTagInline
 
     if (this.currentElement && closeTagInline) {
@@ -879,7 +1055,7 @@ export class FormatPrinter extends Printer {
 
   visitHTMLTextNode(node: HTMLTextNode) {
     if (this.inlineMode) {
-      const normalizedContent = node.content.replace(/\s+/g, ' ').trim()
+      const normalizedContent = node.content.replace(/\s+/g, " ").trim()
 
       if (normalizedContent) {
         this.push(normalizedContent)
@@ -909,7 +1085,7 @@ export class FormatPrinter extends Printer {
 
     if (line) lines.push(this.indent + line)
 
-    lines.forEach(line => this.push(line))
+    lines.forEach((line) => this.push(line))
   }
 
   visitHTMLAttributeNode(node: HTMLAttributeNode) {
@@ -932,41 +1108,60 @@ export class FormatPrinter extends Printer {
     let inner: string
 
     if (node.children && node.children.length > 0) {
-      inner = node.children.map(child => {
-        if (isNode(child, HTMLTextNode) || isNode(child, LiteralNode)) {
-          return child.content
-        } else if (isERBNode(child) || isNode(child, ERBContentNode)) {
-          return this.reconstructERBNode(child, false)
-        } else {
-          return ""
-        }
-      }).join("")
+      inner = node.children
+        .map((child) => {
+          if (isNode(child, HTMLTextNode) || isNode(child, LiteralNode)) {
+            return child.content
+          } else if (isERBNode(child) || isNode(child, ERBContentNode)) {
+            return this.reconstructERBNode(child, false)
+          } else {
+            return ""
+          }
+        })
+        .join("")
 
-      const hasNewlines = inner.includes('\n')
+      const hasNewlines = inner.includes("\n")
 
       if (hasNewlines) {
-        const lines = inner.split('\n')
+        const lines = inner.split("\n")
         const childIndent = " ".repeat(this.indentWidth)
-        const firstLineHasContent = lines[0].trim() !== ''
+        const firstLineHasContent = lines[0].trim() !== ""
 
         if (firstLineHasContent && lines.length > 1) {
-          const contentLines = lines.map(line => line.trim()).filter(line => line !== '')
-          inner = '\n' + contentLines.map(line => childIndent + line).join('\n') + '\n'
+          const contentLines = lines
+            .map((line) => line.trim())
+            .filter((line) => line !== "")
+          inner =
+            "\n" +
+            contentLines.map((line) => childIndent + line).join("\n") +
+            "\n"
         } else {
           const contentLines = lines.filter((line, index) => {
-            return line.trim() !== '' && !(index === 0 || index === lines.length - 1)
+            return (
+              line.trim() !== "" && !(index === 0 || index === lines.length - 1)
+            )
           })
 
-          const minIndent = contentLines.length > 0 ? Math.min(...contentLines.map(line => line.length - line.trimStart().length)) : 0
+          const minIndent =
+            contentLines.length > 0
+              ? Math.min(
+                  ...contentLines.map(
+                    (line) => line.length - line.trimStart().length,
+                  ),
+                )
+              : 0
 
           const processedLines = lines.map((line, index) => {
             const trimmedLine = line.trim()
 
-            if ((index === 0 || index === lines.length - 1) && trimmedLine === '') {
+            if (
+              (index === 0 || index === lines.length - 1) &&
+              trimmedLine === ""
+            ) {
               return line
             }
 
-            if (trimmedLine !== '') {
+            if (trimmedLine !== "") {
               const currentIndent = line.length - line.trimStart().length
               const relativeIndent = Math.max(0, currentIndent - minIndent)
 
@@ -976,7 +1171,7 @@ export class FormatPrinter extends Printer {
             return line
           })
 
-          inner = processedLines.join('\n')
+          inner = processedLines.join("\n")
         }
       } else {
         inner = ` ${inner.trim()} `
@@ -1000,23 +1195,25 @@ export class FormatPrinter extends Printer {
       const startsWithSpace = content[0] === " "
       const before = startsWithSpace ? "" : " "
 
-      this.pushWithIndent(open + before + content.trimEnd() + ' ' + close)
+      this.pushWithIndent(open + before + content.trimEnd() + " " + close)
 
       return
     }
 
     if (contentTrimmedLines.length === 1) {
-      this.pushWithIndent(open + ' ' + content.trim() + ' ' + close)
+      this.pushWithIndent(open + " " + content.trim() + " " + close)
       return
     }
 
     const firstLineEmpty = contentLines[0].trim() === ""
-    const dedentedContent = dedent(firstLineEmpty ? content : content.trimStart())
+    const dedentedContent = dedent(
+      firstLineEmpty ? content : content.trimStart(),
+    )
 
     this.pushWithIndent(open)
 
     this.withIndent(() => {
-      dedentedContent.split("\n").forEach(line => this.pushWithIndent(line))
+      dedentedContent.split("\n").forEach((line) => this.pushWithIndent(line))
     })
 
     this.pushWithIndent(close)
@@ -1085,7 +1282,7 @@ export class FormatPrinter extends Printer {
     if (this.inlineMode) {
       this.printERBNode(node)
 
-      node.statements.forEach(child => {
+      node.statements.forEach((child) => {
         if (isNode(child, HTMLAttributeNode)) {
           this.lines.push(" ")
           this.lines.push(this.renderAttribute(child))
@@ -1104,7 +1301,9 @@ export class FormatPrinter extends Printer {
         }
       })
 
-      const hasHTMLAttributes = node.statements.some(child => isNode(child, HTMLAttributeNode))
+      const hasHTMLAttributes = node.statements.some((child) =>
+        isNode(child, HTMLAttributeNode),
+      )
       const isTokenList = this.isInTokenListAttribute
 
       if ((hasHTMLAttributes || isTokenList) && node.end_node) {
@@ -1117,7 +1316,7 @@ export class FormatPrinter extends Printer {
       this.printERBNode(node)
 
       this.withIndent(() => {
-        node.statements.forEach(child => this.visit(child))
+        node.statements.forEach((child) => this.visit(child))
       })
 
       if (node.subsequent) this.visit(node.subsequent)
@@ -1127,7 +1326,9 @@ export class FormatPrinter extends Printer {
 
   visitERBElseNode(node: ERBElseNode) {
     this.printERBNode(node)
-    this.withIndent(() => node.statements.forEach(statement => this.visit(statement)))
+    this.withIndent(() =>
+      node.statements.forEach((statement) => this.visit(statement)),
+    )
   }
 
   visitERBWhenNode(node: ERBWhenNode) {
@@ -1197,15 +1398,20 @@ export class FormatPrinter extends Printer {
   /**
    * Analyzes an HTMLElementNode and returns formatting decisions for all parts
    */
-  private analyzeElementFormatting(node: HTMLElementNode): ElementFormattingAnalysis {
+  private analyzeElementFormatting(
+    node: HTMLElementNode,
+  ): ElementFormattingAnalysis {
     const openTagInline = this.shouldRenderOpenTagInline(node)
     const elementContentInline = this.shouldRenderElementContentInline(node)
-    const closeTagInline = this.shouldRenderCloseTagInline(node, elementContentInline)
+    const closeTagInline = this.shouldRenderCloseTagInline(
+      node,
+      elementContentInline,
+    )
 
     return {
       openTagInline,
       elementContentInline,
-      closeTagInline
+      closeTagInline,
     }
   }
 
@@ -1216,12 +1422,18 @@ export class FormatPrinter extends Printer {
     const children = node.open_tag?.children || []
     const attributes = filterNodes(children, HTMLAttributeNode)
     const inlineNodes = this.extractInlineNodes(children)
-    const hasERBControlFlow = inlineNodes.some(node => isERBControlFlowNode(node)) || children.some(node => isERBControlFlowNode(node))
-    const hasComplexERB = hasERBControlFlow && hasComplexERBControlFlow(inlineNodes)
+    const hasERBControlFlow =
+      inlineNodes.some((node) => isERBControlFlowNode(node)) ||
+      children.some((node) => isERBControlFlowNode(node))
+    const hasComplexERB =
+      hasERBControlFlow && hasComplexERBControlFlow(inlineNodes)
 
     if (hasComplexERB) return false
 
-    const totalAttributeCount = this.getTotalAttributeCount(attributes, inlineNodes)
+    const totalAttributeCount = this.getTotalAttributeCount(
+      attributes,
+      inlineNodes,
+    )
     const hasMultilineAttrs = this.hasMultilineAttributes(attributes)
 
     if (hasMultilineAttrs) return false
@@ -1231,7 +1443,7 @@ export class FormatPrinter extends Printer {
       attributes,
       node.open_tag?.tag_closing?.value === "/>",
       inlineNodes,
-      children
+      children,
     )
 
     return this.shouldRenderInline(
@@ -1241,7 +1453,7 @@ export class FormatPrinter extends Printer {
       this.maxLineLength,
       hasComplexERB,
       hasMultilineAttrs,
-      attributes
+      attributes,
     )
   }
 
@@ -1257,7 +1469,12 @@ export class FormatPrinter extends Printer {
     if (children.length === 0) return true
 
     if (isInlineElement(tagName)) {
-      const fullInlineResult = this.tryRenderInlineFull(node, tagName, filterNodes(node.open_tag?.children, HTMLAttributeNode), node.body)
+      const fullInlineResult = this.tryRenderInlineFull(
+        node,
+        tagName,
+        filterNodes(node.open_tag?.children, HTMLAttributeNode),
+        node.body,
+      )
 
       if (fullInlineResult) {
         const totalLength = this.indent.length + fullInlineResult.length
@@ -1272,7 +1489,12 @@ export class FormatPrinter extends Printer {
     const hasMixedContent = hasMixedTextAndInlineContent(children)
 
     if (allNestedAreInline && (!hasMultilineText || hasMixedContent)) {
-      const fullInlineResult = this.tryRenderInlineFull(node, tagName, filterNodes(node.open_tag?.children, HTMLAttributeNode), node.body)
+      const fullInlineResult = this.tryRenderInlineFull(
+        node,
+        tagName,
+        filterNodes(node.open_tag?.children, HTMLAttributeNode),
+        node.body,
+      )
 
       if (fullInlineResult) {
         const totalLength = this.indent.length + fullInlineResult.length
@@ -1291,13 +1513,13 @@ export class FormatPrinter extends Printer {
         filterNodes(node.open_tag?.children, HTMLAttributeNode),
         false,
         [],
-        node.open_tag?.children || []
+        node.open_tag?.children || [],
       )
 
       const childrenContent = this.renderChildrenInline(children)
       const fullLine = openTagResult + childrenContent + `</${tagName}>`
 
-      if ((this.indent.length + fullLine.length) <= this.maxLineLength) {
+      if (this.indent.length + fullLine.length <= this.maxLineLength) {
         return true
       }
     }
@@ -1308,7 +1530,10 @@ export class FormatPrinter extends Printer {
   /**
    * Determines if the close tag should be rendered inline (usually follows content decision)
    */
-  private shouldRenderCloseTagInline(node: HTMLElementNode, elementContentInline: boolean): boolean {
+  private shouldRenderCloseTagInline(
+    node: HTMLElementNode,
+    elementContentInline: boolean,
+  ): boolean {
     if (node.is_void) return true
     if (node.open_tag?.tag_closing?.value === "/>") return true
     if (isContentPreserving(node)) return true
@@ -1320,13 +1545,16 @@ export class FormatPrinter extends Printer {
     return elementContentInline
   }
 
-
   // --- Utility methods ---
 
   /**
    * Append a child node to the last output line
    */
-  private appendChildToLastLine(child: Node, siblings?: Node[], index?: number): void {
+  private appendChildToLastLine(
+    child: Node,
+    siblings?: Node[],
+    index?: number,
+  ): void {
     if (isNode(child, HTMLTextNode)) {
       this.pushToLastLine(child.content.trim())
     } else {
@@ -1335,7 +1563,10 @@ export class FormatPrinter extends Printer {
       if (siblings && index !== undefined && index > 0) {
         const prevSibling = siblings[index - 1]
 
-        if (isPureWhitespaceNode(prevSibling) || isNode(prevSibling, WhitespaceNode)) {
+        if (
+          isPureWhitespaceNode(prevSibling) ||
+          isNode(prevSibling, WhitespaceNode)
+        ) {
           hasSpaceBefore = true
         }
       }
@@ -1379,7 +1610,10 @@ export class FormatPrinter extends Printer {
         continue
       }
 
-      if (isNode(child, HTMLElementNode) && isInlineElement(getTagName(child))) {
+      if (
+        isNode(child, HTMLElementNode) &&
+        isInlineElement(getTagName(child))
+      ) {
         inlineContent += this.renderInlineElementAsString(child)
         processedCount++
       } else if (isNode(child, ERBContentNode)) {
@@ -1400,16 +1634,21 @@ export class FormatPrinter extends Printer {
     const tagName = getTagName(element)
 
     if (element.is_void || element.open_tag?.tag_closing?.value === "/>") {
-      const attributes = filterNodes(element.open_tag?.children, HTMLAttributeNode)
+      const attributes = filterNodes(
+        element.open_tag?.children,
+        HTMLAttributeNode,
+      )
       const attributesString = this.renderAttributesString(attributes)
       const isSelfClosing = element.open_tag?.tag_closing?.value === "/>"
 
       return `<${tagName}${attributesString}${isSelfClosing ? " />" : ">"}`
     }
 
-    const childInline = this.tryRenderInlineFull(element, tagName,
+    const childInline = this.tryRenderInlineFull(
+      element,
+      tagName,
       filterNodes(element.open_tag?.children, HTMLAttributeNode),
-      filterEmptyNodes(element.body)
+      filterEmptyNodes(element.body),
     )
 
     return childInline !== null ? childInline : ""
@@ -1462,10 +1701,10 @@ export class FormatPrinter extends Printer {
       } else if (unit.isAtomic) {
         words.push(unit.content)
       } else {
-        const text = unit.content.replace(/\s+/g, ' ').trim()
+        const text = unit.content.replace(/\s+/g, " ").trim()
 
         if (text) {
-          words.push(...text.split(' '))
+          words.push(...text.split(" "))
         }
       }
     }
@@ -1669,8 +1908,13 @@ export class FormatPrinter extends Printer {
           }
         } else {
           result.push({
-            unit: { content: '', type: 'block', isAtomic: false, breaksFlow: true },
-            node: child
+            unit: {
+              content: "",
+              type: "block",
+              isAtomic: false,
+              breaksFlow: true,
+            },
+            node: child,
           })
         }
 
@@ -1687,8 +1931,13 @@ export class FormatPrinter extends Printer {
         lastProcessedIndex = i
       } else {
         result.push({
-          unit: { content: '', type: 'block', isAtomic: false, breaksFlow: true },
-          node: child
+          unit: {
+            content: "",
+            type: "block",
+            isAtomic: false,
+            breaksFlow: true,
+          },
+          node: child,
         })
 
         lastProcessedIndex = i
@@ -1732,17 +1981,21 @@ export class FormatPrinter extends Printer {
       lines.push(this.indent + currentLine)
     }
 
-    lines.forEach(line => this.push(line))
+    lines.forEach((line) => this.push(line))
   }
 
   private isInTextFlowContext(_parent: Node | null, children: Node[]): boolean {
-    const hasTextContent = children.some(child => isNode(child, HTMLTextNode) &&child.content.trim() !== "")
-    const nonTextChildren = children.filter(child => !isNode(child, HTMLTextNode))
+    const hasTextContent = children.some(
+      (child) => isNode(child, HTMLTextNode) && child.content.trim() !== "",
+    )
+    const nonTextChildren = children.filter(
+      (child) => !isNode(child, HTMLTextNode),
+    )
 
     if (!hasTextContent) return false
     if (nonTextChildren.length === 0) return false
 
-    const allInline = nonTextChildren.every(child => {
+    const allInline = nonTextChildren.every((child) => {
       if (isNode(child, ERBContentNode)) return true
 
       if (isNode(child, HTMLElementNode)) {
@@ -1757,18 +2010,24 @@ export class FormatPrinter extends Printer {
     return true
   }
 
-  private renderInlineOpen(name: string, attributes: HTMLAttributeNode[], selfClose: boolean, inlineNodes: Node[] = [], allChildren: Node[] = []): string {
-    const parts = attributes.map(attribute => this.renderAttribute(attribute))
+  private renderInlineOpen(
+    name: string,
+    attributes: HTMLAttributeNode[],
+    selfClose: boolean,
+    inlineNodes: Node[] = [],
+    allChildren: Node[] = [],
+  ): string {
+    const parts = attributes.map((attribute) => this.renderAttribute(attribute))
 
     if (inlineNodes.length > 0) {
       let result = `<${name}`
 
       if (allChildren.length > 0) {
         const lines = this.capture(() => {
-          allChildren.forEach(child => {
+          allChildren.forEach((child) => {
             if (isNode(child, HTMLAttributeNode)) {
               this.lines.push(" " + this.renderAttribute(child))
-            } else if (!(isNode(child, WhitespaceNode))) {
+            } else if (!isNode(child, WhitespaceNode)) {
               const wasInlineMode = this.inlineMode
 
               this.inlineMode = true
@@ -1787,7 +2046,7 @@ export class FormatPrinter extends Printer {
         }
 
         const lines = this.capture(() => {
-          inlineNodes.forEach(node => {
+          inlineNodes.forEach((node) => {
             const wasInlineMode = this.inlineMode
 
             if (!isERBControlFlowNode(node)) {
@@ -1826,37 +2085,56 @@ export class FormatPrinter extends Printer {
       let close_quote = attributeValue.close_quote?.value ?? ""
       let htmlTextContent = ""
 
-      const content = attributeValue.children.map((child: Node) => {
-        if (isNode(child, HTMLTextNode) || isNode(child, LiteralNode)) {
-          htmlTextContent += child.content
+      const content = attributeValue.children
+        .map((child: Node) => {
+          if (isNode(child, HTMLTextNode) || isNode(child, LiteralNode)) {
+            htmlTextContent += child.content
 
-          return child.content
-        } else if (isNode(child, ERBContentNode)) {
-          return this.reconstructERBNode(child, true)
-        } else {
-          const printed = IdentityPrinter.print(child)
+            return child.content
+          } else if (isNode(child, ERBContentNode)) {
+            return this.reconstructERBNode(child, true)
+          } else {
+            const printed = IdentityPrinter.print(child)
 
-          if (this.isInTokenListAttribute) {
-            return printed.replace(/%>([^<\s])/g, '%> $1').replace(/([^>\s])<%/g, '$1 <%')
+            if (this.isInTokenListAttribute) {
+              return printed
+                .replace(/%>([^<\s])/g, "%> $1")
+                .replace(/([^>\s])<%/g, "$1 <%")
+            }
+
+            return printed
           }
-
-          return printed
-        }
-      }).join("")
+        })
+        .join("")
 
       if (open_quote === "" && close_quote === "") {
         open_quote = '"'
         close_quote = '"'
-      } else if (open_quote === "'" && close_quote === "'" && !htmlTextContent.includes('"')) {
+      } else if (
+        open_quote === "'" &&
+        close_quote === "'" &&
+        !htmlTextContent.includes('"')
+      ) {
         open_quote = '"'
         close_quote = '"'
       }
 
       if (this.isFormattableAttribute(name, this.currentTagName)) {
-        if (name === 'class') {
-          value = this.formatClassAttribute(content, name, equals, open_quote, close_quote)
+        if (name === "class") {
+          value = this.formatClassAttribute(
+            content,
+            name,
+            equals,
+            open_quote,
+            close_quote,
+          )
         } else {
-          value = this.formatMultilineAttribute(content, name, open_quote, close_quote)
+          value = this.formatMultilineAttribute(
+            content,
+            name,
+            open_quote,
+            close_quote,
+          )
         }
       } else {
         value = open_quote + content + close_quote
@@ -1871,7 +2149,12 @@ export class FormatPrinter extends Printer {
   /**
    * Try to render a complete element inline including opening tag, children, and closing tag
    */
-  private tryRenderInlineFull(_node: HTMLElementNode, tagName: string, attributes: HTMLAttributeNode[], children: Node[]): string | null {
+  private tryRenderInlineFull(
+    _node: HTMLElementNode,
+    tagName: string,
+    attributes: HTMLAttributeNode[],
+    children: Node[],
+  ): string | null {
     let result = `<${tagName}`
 
     result += this.renderAttributesString(attributes)
@@ -1896,7 +2179,7 @@ export class FormatPrinter extends Printer {
 
     for (const child of children) {
       if (isNode(child, HTMLTextNode)) {
-        const normalizedContent = child.content.replace(/\s+/g, ' ')
+        const normalizedContent = child.content.replace(/\s+/g, " ")
         const hasLeadingSpace = /^\s/.test(child.content)
         const hasTrailingSpace = /\s$/.test(child.content)
         const trimmedContent = normalizedContent.trim()
@@ -1904,25 +2187,24 @@ export class FormatPrinter extends Printer {
         if (trimmedContent) {
           let finalContent = trimmedContent
 
-          if (hasLeadingSpace && result && !result.endsWith(' ')) {
-            finalContent = ' ' + finalContent
+          if (hasLeadingSpace && result && !result.endsWith(" ")) {
+            finalContent = " " + finalContent
           }
 
           if (hasTrailingSpace) {
-            finalContent = finalContent + ' '
+            finalContent = finalContent + " "
           }
 
           result += finalContent
         } else if (hasLeadingSpace || hasTrailingSpace) {
-          if (result && !result.endsWith(' ')) {
-            result += ' '
+          if (result && !result.endsWith(" ")) {
+            result += " "
             hasInternalWhitespace = true
           }
         }
-
       } else if (isNode(child, WhitespaceNode)) {
-        if (result && !result.endsWith(' ')) {
-          result += ' '
+        if (result && !result.endsWith(" ")) {
+          result += " "
           hasInternalWhitespace = true
         }
       } else if (isNode(child, HTMLElementNode)) {
@@ -1932,9 +2214,11 @@ export class FormatPrinter extends Printer {
           return null
         }
 
-        const childInline = this.tryRenderInlineFull(child, tagName,
+        const childInline = this.tryRenderInlineFull(
+          child,
+          tagName,
           filterNodes(child.open_tag?.children, HTMLAttributeNode),
-          filterEmptyNodes(child.body)
+          filterEmptyNodes(child.body),
         )
 
         if (!childInline) {
@@ -1964,7 +2248,7 @@ export class FormatPrinter extends Printer {
   private tryRenderInline(children: Node[], tagName: string): string | null {
     for (const child of children) {
       if (isNode(child, HTMLTextNode)) {
-        if (child.content.includes('\n')) {
+        if (child.content.includes("\n")) {
           return null
         }
       } else if (isNode(child, HTMLElementNode)) {
@@ -1994,14 +2278,17 @@ export class FormatPrinter extends Printer {
   }
 
   private renderChildrenInline(children: Node[]) {
-    let content = ''
+    let content = ""
 
     for (const child of children) {
       if (isNode(child, HTMLTextNode)) {
         content += child.content
-      } else if (isNode(child, HTMLElementNode) ) {
+      } else if (isNode(child, HTMLElementNode)) {
         const tagName = getTagName(child)
-        const attributes = filterNodes(child.open_tag?.children, HTMLAttributeNode)
+        const attributes = filterNodes(
+          child.open_tag?.children,
+          HTMLAttributeNode,
+        )
         const attributesString = this.renderAttributesString(attributes)
         const childContent = this.renderElementInline(child)
 
@@ -2011,6 +2298,6 @@ export class FormatPrinter extends Printer {
       }
     }
 
-    return content.replace(/\s+/g, ' ').trim()
+    return content.replace(/\s+/g, " ").trim()
   }
 }
