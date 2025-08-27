@@ -3,12 +3,14 @@ import dedent from "dedent"
 import { describe, test, expect, beforeAll } from "vitest"
 import { Herb } from "@herb-tools/node-wasm"
 import { Linter } from "../../src/linter.js"
+import { env } from "node:process"
 
 import { ERBRubocopRule } from "../../src/rules/erb-rubocop.js"
 
 describe("ERBRubocopRule", () => {
     beforeAll(async () => {
         await Herb.load()
+        env.HERB_LINTER_ERB_RUBOCOP_ADDITIONAL_OPTIONS = "--force-default-config"
     })
 
     test("does not fail if no ruby", () => {

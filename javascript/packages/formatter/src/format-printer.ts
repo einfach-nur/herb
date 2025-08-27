@@ -13,6 +13,7 @@ import {
   isERBControlFlowNode,
   filterNodes,
   hasERBOutput,
+  Rubocop,
 } from "@herb-tools/core"
 import { Printer, IdentityPrinter } from "@herb-tools/printer"
 
@@ -53,7 +54,7 @@ import {
   Token
 } from "@herb-tools/core"
 
-import type { ERBNode } from "@herb-tools/core"
+import type { ERBNode, RubocopCorrection } from "@herb-tools/core"
 import type { FormatOptions } from "./options.js"
 
 /**
@@ -95,6 +96,7 @@ export class FormatPrinter extends Printer {
   private currentAttributeName: string | null = null
   private elementStack: HTMLElementNode[] = []
   private elementFormattingAnalysis = new Map<HTMLElementNode, ElementFormattingAnalysis>()
+  private rubocopCorrections: RubocopCorrection[] = [];
 
   public source: string
 
@@ -143,6 +145,7 @@ export class FormatPrinter extends Printer {
     this.lines = []
     this.indentLevel = 0
 
+    this.rubocopCorrections = Rubocop.corrections(node);
     this.visit(node)
 
     return this.lines.join("\n")
@@ -655,7 +658,21 @@ export class FormatPrinter extends Printer {
   private reconstructERBNode(node: ERBNode, withFormatting: boolean = true): string {
     const open = node.tag_opening?.value ?? ""
     const close = node.tag_closing?.value ?? ""
-    const content = node.content?.value ?? ""
+    let content = node.content?.value ?? ""
+
+    // claimed by einfach-nur
+    let relevantCorrections: any[] = []
+    if (node.content) {
+        for (const correction of this.rubocopCorrections) {
+            if (correction.location.start.line >= node.content.location.start.line && correction.location.end.line <= node.content.location.end.line) {
+                content = content.slice(0, correction.location.start.column - node.content.location.start.column)
+                + correction.replacement
+                + content.slice(correction.location.end.column - node.content.location.start.column)
+            }
+        }
+    }
+    // claimed by einfach-nur end
+
     const inner = withFormatting ? this.formatERBContent(content) : content
 
     return open + inner + close
