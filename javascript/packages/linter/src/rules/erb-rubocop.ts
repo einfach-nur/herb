@@ -24,9 +24,8 @@ import {
 } from "@herb-tools/core"
 import { execSync } from "child_process"
 import { ParserRule } from "../types.js"
-import * as path from "path"
 import type { LintOffense, LintContext, LintSeverity } from "../types.js"
-import { fileURLToPath } from "url"
+import { jsonCorrectorFormatterPath } from "../paths.js"
 
 class ExtractRubyVisitor extends Visitor {
     source: string
@@ -180,15 +179,8 @@ export class ERBRubocopRule extends ParserRule {
         console.log("########## extracted #############")
         console.log(visitor.source)
 
-        const __filename = fileURLToPath(import.meta.url)
-        const __dirname = path.dirname(__filename)
-
-        const formatter_path = path.join(
-            __dirname,
-            "../../json_corrector_formatter.rb",
-        )
         let stdout = execSync(
-            `bundle exec rubocop --stdin abc --require ${formatter_path} --format JSONCorrectorFormatter --force-default-config --except ${this.ignored_cops.join(",")} || true`,
+            `bundle exec rubocop --stdin abc --require ${jsonCorrectorFormatterPath} --format JSONCorrectorFormatter --force-default-config --except ${this.ignored_cops.join(",")} || true`,
             { input: visitor.source },
         )
         const json = JSON.parse(stdout.toString())
