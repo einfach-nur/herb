@@ -15,7 +15,7 @@
   "module": "./dist/herb-core.esm.js",
   "types": "./dist/types/index.d.ts",
   "scripts": {
-    "build": "yarn clean && rollup -c && mkdir dist/assets && cp assets/json_corrector_formatter.rb dist/assets",
+    "build": "yarn clean && rollup -c",
     "dev": "rollup -c -w",
     "clean": "rimraf dist",
     "test": "vitest run",
@@ -23,7 +23,6 @@
   },
   "exports": {
     "./package.json": "./package.json",
-    "./assets/json_corrector_formatter.rb": "./assets/json_corrector_formatter.rb",
     ".": {
       "types": "./dist/types/index.d.ts",
       "import": "./dist/herb-core.esm.js",
