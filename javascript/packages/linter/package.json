@@ -18,7 +18,7 @@
   },
   "scripts": {
     "clean": "rimraf dist",
-    "build": "yarn clean && tsc -b && rollup -c && mkdir dist/assets && cp assets/json_corrector_formatter.rb dist/assets",
+    "build": "yarn clean && tsc -b && rollup -c",
     "watch": "tsc -b -w",
     "test": "vitest run",
     "test:watch": "vitest --watch",
@@ -26,7 +26,6 @@
   },
   "exports": {
     "./package.json": "./package.json",
-    "./assets/json_corrector_formatter.rb": "./assets/json_corrector_formatter.rb",
     ".": {
       "types": "./dist/types/index.d.ts",
       "import": "./dist/index.js",
@@ -44,6 +43,7 @@
     "@herb-tools/highlighter": "0.7.5",
     "@herb-tools/node-wasm": "0.7.5",
     "@herb-tools/printer": "0.7.5",
+    "@herb-tools/rubocop": "0.0.1",
     "glob": "^11.0.3"
   },
   "files": [

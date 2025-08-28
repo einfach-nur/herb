@@ -12,9 +12,8 @@ import {
   isCommentNode,
   isERBControlFlowNode,
   filterNodes,
-  Rubocop,
 } from "@herb-tools/core"
-
+import { Rubocop } from "@herb-tools/rubocop"
 import { Printer, IdentityPrinter } from "@herb-tools/printer"
 
 import {
