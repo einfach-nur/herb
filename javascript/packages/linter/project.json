@@ -12,7 +12,8 @@
       "dependsOn": [
         "@herb-tools/browser:build",
         "@herb-tools/highlighter:build",
-        "@herb-tools/printer:build"
+        "@herb-tools/printer:build",
+        "@herb-tools/rubocop:build"
       ]
     },
     "test": {

@@ -73,6 +73,36 @@ export class Rubocop {
     "Layout/ArgumentAlignment",
   ]
 
+  static applyCorrectionsToNode(
+    node: ERBNode,
+    corrections: RubocopCorrection[],
+  ): string {
+    if (!node.content) {
+      return ""
+    }
+
+    let content = node.content.value
+
+    for (const correction of corrections) {
+      if (
+        correction.location.start.line >= node.content.location.start.line &&
+        correction.location.end.line <= node.content.location.end.line
+      ) {
+        content =
+          content.slice(
+            0,
+            correction.location.start.column -
+              node.content.location.start.column,
+          ) +
+          correction.string +
+          content.slice(
+            correction.location.end.column - node.content.location.start.column,
+          )
+      }
+    }
+    return content
+  }
+
   static offenses(node: Node): RubocopOffense[] {
     let analysis = this.extractRuby(node)
     if (!analysis.ruby) {
@@ -228,17 +258,27 @@ class ExtractRubyVisitor extends Visitor {
       return
     }
 
-    let content = node.content.value.trimStart()
-    const startTrimLength = node.content.value.length - content.length
-    content = content.trimEnd()
+    const leadingWhitespace = (node.content.value.match(/^\s*/) || [""])[0]
 
-    let erbPosition = new Position(
-      node.content.location.start.line,
-      node.content.location.start.column + startTrimLength,
-    )
+    const newlineCount = (leadingWhitespace.match(/\r?\n/g) || []).length
+    const line = node.content.location.start.line + newlineCount
+
+    let column = node.content.location.start.column + leadingWhitespace.length
+
+    if (newlineCount > 0) {
+      column =
+        leadingWhitespace.length -
+        1 -
+        Math.max(
+          leadingWhitespace.lastIndexOf("\n"),
+          leadingWhitespace.lastIndexOf("\r"),
+        )
+    }
+
+    const erbPosition = new Position(line, column)
 
     this.mappings.push({ ruby: this.sourcePosition(), erb: erbPosition })
-    this.ruby += content + "\n"
+    this.ruby += node.content.value.trim() + "\n"
 
     this.visitChildNodes(node)
   }

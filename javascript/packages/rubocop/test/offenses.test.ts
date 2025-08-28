@@ -42,6 +42,27 @@ describe("Rubocop", () => {
     expect(offenses[0].location.end.column).toBe(15)
   })
 
+  test("a single offense in an erb tag that starts with weird whitespace", () => {
+    let result = Herb.parse(dedent`
+        <h1>
+          <%  
+                
+            
+                "test"
+          %>
+        </h1>
+    `)
+    let offenses = Rubocop.offenses(result.value)
+    expect(offenses).toHaveLength(1)
+    expect(offenses[0].copName.length).toBeGreaterThan(0)
+    expect(offenses[0].message.length).toBeGreaterThan(0)
+
+    expect(offenses[0].location.start.line).toBe(5)
+    expect(offenses[0].location.start.column).toBe(8)
+    expect(offenses[0].location.end.line).toBe(5)
+    expect(offenses[0].location.end.column).toBe(14)
+  })
+
   test("a single single-line correctable offense", () => {
     let result = Herb.parse(dedent`
         <h1><%= "test" %></h1>
