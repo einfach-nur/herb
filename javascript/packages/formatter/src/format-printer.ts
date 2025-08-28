@@ -714,26 +714,7 @@ export class FormatPrinter extends Printer {
     let content = node.content?.value ?? ""
 
     // claimed by einfach-nur
-    if (node.content) {
-      for (const correction of this.rubocopCorrections) {
-        if (
-          correction.location.start.line >= node.content.location.start.line &&
-          correction.location.end.line <= node.content.location.end.line
-        ) {
-          content =
-            content.slice(
-              0,
-              correction.location.start.column -
-                node.content.location.start.column,
-            ) +
-            correction.string +
-            content.slice(
-              correction.location.end.column -
-                node.content.location.start.column,
-            )
-        }
-      }
-    }
+    content = Rubocop.applyCorrectionsToNode(node, this.rubocopCorrections)
     // claimed by einfach-nur end
 
     const inner = withFormatting ? this.formatERBContent(content) : content
