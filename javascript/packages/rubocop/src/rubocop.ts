@@ -28,27 +28,72 @@ import { env } from "node:process"
 import { execSync } from "child_process"
 
 export type RubocopCorrection = {
+  string: string
   location: Location
-  replacement: string
 }
 
 export type RubocopOffense = {
-  correctable: boolean
-  location: Location
-  message: string
   severity: string
+  copName: string
+  message: string
+  location: Location
+  correctable: boolean
   corrections: RubocopCorrection[]
 }
 
+type RubocopResponse = {
+  files: {
+    offenses: RubocopOffense[]
+  }[]
+}
+
 export class Rubocop {
-  static ignored_cops = [
+  static ignoredCops = [
     "Style/FrozenStringLiteralComment",
     "Lint/Void",
     "Layout/IndentationWidth",
     "Layout/ArgumentAlignment",
   ]
 
-  private static translate_position(
+  static offenses(node: Node): RubocopOffense[] {
+    const visitor = new ExtractRubyVisitor()
+    visitor.visit(node)
+    if (!visitor.source) {
+      return []
+    }
+
+    const rubocopOptions = env.HERB_LINTER_ERB_RUBOCOP_ADDITIONAL_OPTIONS || ""
+
+    // TODO: `|| true`???
+    let stdout = execSync(
+      `bundle exec rubocop --stdin stdin --require ${jsonCorrectorFormatterPath} --format JSONCorrectorFormatter --except ${this.ignoredCops.join(",")} ${rubocopOptions} || true`,
+      { input: visitor.source },
+    )
+    const rubocopResponse: RubocopResponse = JSON.parse(stdout.toString())
+
+    for (const offense of rubocopResponse.files[0].offenses) {
+      offense.location = new Location(
+        this.translatePosition(visitor.mapping, offense.location.start),
+        this.translatePosition(visitor.mapping, offense.location.end),
+      )
+      if (offense.correctable) {
+        for (const correction of offense.corrections) {
+          correction.location = new Location(
+            this.translatePosition(visitor.mapping, correction.location.start),
+            this.translatePosition(visitor.mapping, correction.location.end),
+          )
+        }
+      }
+    }
+
+    return rubocopResponse.files[0].offenses
+  }
+
+  static corrections(node: Node): RubocopCorrection[] {
+    return this.offenses(node).flatMap((offense) => offense.corrections)
+  }
+
+  private static translatePosition(
     mapping: { ruby: Position; erb: Position }[],
     rubyPosition: Position,
   ): Position {
@@ -69,94 +114,16 @@ export class Rubocop {
       relevantMapping = mapping[mapping.length - 1]
     }
 
-    const line_offset = relevantMapping.erb.line - relevantMapping.ruby.line
-    const column_offset =
+    const lineOffset = relevantMapping.erb.line - relevantMapping.ruby.line
+    const columnOffset =
       rubyPosition.line == relevantMapping.ruby.line
         ? relevantMapping.erb.column - relevantMapping.ruby.column
         : 0
 
     return new Position(
-      rubyPosition.line + line_offset,
-      rubyPosition.column + column_offset,
+      rubyPosition.line + lineOffset,
+      rubyPosition.column + columnOffset,
     )
-  }
-
-  static offenses(node: Node): RubocopOffense[] {
-    const visitor = new ExtractRubyVisitor()
-    visitor.visit(node)
-    if (!visitor.source) {
-      return []
-    }
-
-    const rubocopOptions = env.HERB_LINTER_ERB_RUBOCOP_ADDITIONAL_OPTIONS || ""
-
-    // TODO: `|| true`???
-    let stdout = execSync(
-      `bundle exec rubocop --stdin stdin --require ${jsonCorrectorFormatterPath} --format JSONCorrectorFormatter --except ${this.ignored_cops.join(",")} ${rubocopOptions} || true`,
-      { input: visitor.source },
-    )
-    const json = JSON.parse(stdout.toString())
-
-    let offenses: RubocopOffense[] = []
-
-    for (const offenseJSON of json.files[0].offenses) {
-      const offenseLocation = new Location(
-        this.translate_position(
-          visitor.mapping,
-          new Position(
-            offenseJSON.location.start_line,
-            offenseJSON.location.start_column - 1,
-          ),
-        ),
-        this.translate_position(
-          visitor.mapping,
-          new Position(
-            offenseJSON.location.last_line,
-            offenseJSON.location.last_column,
-          ),
-        ),
-      )
-
-      let corrections: RubocopCorrection[] = []
-
-      if (offenseJSON.corrector) {
-        for (const replacement of offenseJSON.corrector.replacements) {
-          const rubyLocation = new Location(
-            new Position(
-              replacement.range.start.line,
-              replacement.range.start.column,
-            ),
-            new Position(
-              replacement.range.end.line,
-              replacement.range.end.column,
-            ),
-          )
-
-          const erbLocation = new Location(
-            this.translate_position(visitor.mapping, rubyLocation.start),
-            this.translate_position(visitor.mapping, rubyLocation.end),
-          )
-
-          corrections.push({
-            location: erbLocation,
-            replacement: replacement.string,
-          })
-        }
-      }
-
-      offenses.push({
-        correctable: offenseJSON.correctable,
-        location: offenseLocation,
-        message: offenseJSON.message,
-        severity: offenseJSON.severity,
-        corrections: corrections,
-      })
-    }
-    return offenses
-  }
-
-  static corrections(node: Node): RubocopCorrection[] {
-    return this.offenses(node).flatMap((offense) => offense.corrections)
   }
 }
 
@@ -171,58 +138,58 @@ class ExtractRubyVisitor extends Visitor {
   }
 
   visitERBContentNode(node: ERBContentNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBEndNode(node: ERBEndNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBElseNode(node: ERBElseNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBIfNode(node: ERBIfNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBBlockNode(node: ERBBlockNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBWhenNode(node: ERBWhenNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBCaseNode(node: ERBCaseNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBCaseMatchNode(node: ERBCaseMatchNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBWhileNode(node: ERBWhileNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBUntilNode(node: ERBUntilNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBForNode(node: ERBForNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBRescueNode(node: ERBRescueNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBEnsureNode(node: ERBEnsureNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBBeginNode(node: ERBBeginNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBUnlessNode(node: ERBUnlessNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBYieldNode(node: ERBYieldNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
   visitERBInNode(node: ERBInNode): void {
-    this.extract_ruby(node)
+    this.extractRuby(node)
   }
 
-  extract_ruby(node: ERBNode): void {
+  extractRuby(node: ERBNode): void {
     if (!node.content) {
       this.visitChildNodes(node)
       return
@@ -232,18 +199,18 @@ class ExtractRubyVisitor extends Visitor {
     const startTrimLength = node.content.value.length - content.length
     content = content.trimEnd()
 
-    let erb_position = new Position(
+    let erbPosition = new Position(
       node.content.location.start.line,
       node.content.location.start.column + startTrimLength,
     )
 
-    this.mapping.push({ ruby: this.source_position(), erb: erb_position })
+    this.mapping.push({ ruby: this.sourcePosition(), erb: erbPosition })
     this.source += content + "\n"
 
     this.visitChildNodes(node)
   }
 
-  source_position(): Position {
+  private sourcePosition(): Position {
     const lines = this.source.split("\n")
     const line = lines.length
     const column = lines[lines.length - 1].length
