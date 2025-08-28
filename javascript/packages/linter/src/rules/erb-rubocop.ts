@@ -1,10 +1,10 @@
 import { type ParseResult } from "@herb-tools/core"
-import { Rubocop } from "@herb-tools/rubocop"
+import { Rubocop, RubocopSeverity } from "@herb-tools/rubocop"
 import { ParserRule } from "../types.js"
 import type { LintOffense, LintContext, LintSeverity } from "../types.js"
 
 export class ERBRubocopRule extends ParserRule {
-  rubocopToLspSeverity: Record<string, LintSeverity> = {
+  rubocopToLintSeverity: Record<RubocopSeverity, LintSeverity> = {
     info: "hint",
     refactor: "info",
     convention: "info",
@@ -21,7 +21,7 @@ export class ERBRubocopRule extends ParserRule {
       code: this.name,
       source: "Herb Linter",
       message: offense.message,
-      severity: this.rubocopToLspSeverity[offense.severity],
+      severity: this.rubocopToLintSeverity[offense.severity],
       location: offense.location,
     }))
   }

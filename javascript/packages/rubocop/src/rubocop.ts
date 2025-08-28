@@ -33,7 +33,7 @@ export type RubocopCorrection = {
 }
 
 export type RubocopOffense = {
-  severity: string
+  severity: RubocopSeverity
   copName: string
   message: string
   location: Location
@@ -41,14 +41,32 @@ export type RubocopOffense = {
   corrections: RubocopCorrection[]
 }
 
+export type RubocopSeverity =
+  | "info"
+  | "refactor"
+  | "convention"
+  | "warning"
+  | "error"
+  | "fatal"
+
 type RubocopResponse = {
   files: {
     offenses: RubocopOffense[]
   }[]
 }
 
+type PositionMapping = {
+  erb: Position
+  ruby: Position
+}
+
+type RubyAnalysis = {
+  ruby: string
+  mappings: PositionMapping[]
+}
+
 export class Rubocop {
-  static ignoredCops = [
+  static disabledCops = [
     "Style/FrozenStringLiteralComment",
     "Lint/Void",
     "Layout/IndentationWidth",
@@ -56,62 +74,77 @@ export class Rubocop {
   ]
 
   static offenses(node: Node): RubocopOffense[] {
-    const visitor = new ExtractRubyVisitor()
-    visitor.visit(node)
-    if (!visitor.source) {
+    let analysis = this.extractRuby(node)
+    if (!analysis.ruby) {
       return []
     }
 
-    const rubocopOptions = env.HERB_LINTER_ERB_RUBOCOP_ADDITIONAL_OPTIONS || ""
+    let response = this.callRubocop(analysis.ruby)
 
-    // TODO: `|| true`???
-    let stdout = execSync(
-      `bundle exec rubocop --stdin stdin --require ${jsonCorrectorFormatterPath} --format JSONCorrectorFormatter --except ${this.ignoredCops.join(",")} ${rubocopOptions} || true`,
-      { input: visitor.source },
-    )
-    const rubocopResponse: RubocopResponse = JSON.parse(stdout.toString())
-
-    for (const offense of rubocopResponse.files[0].offenses) {
+    for (const offense of response.files[0].offenses) {
       offense.location = new Location(
-        this.translatePosition(visitor.mapping, offense.location.start),
-        this.translatePosition(visitor.mapping, offense.location.end),
+        this.translatePosition(analysis.mappings, offense.location.start),
+        this.translatePosition(analysis.mappings, offense.location.end),
       )
       if (offense.correctable) {
         for (const correction of offense.corrections) {
           correction.location = new Location(
-            this.translatePosition(visitor.mapping, correction.location.start),
-            this.translatePosition(visitor.mapping, correction.location.end),
+            this.translatePosition(
+              analysis.mappings,
+              correction.location.start,
+            ),
+            this.translatePosition(analysis.mappings, correction.location.end),
           )
         }
       }
     }
 
-    return rubocopResponse.files[0].offenses
+    return response.files[0].offenses
   }
 
   static corrections(node: Node): RubocopCorrection[] {
     return this.offenses(node).flatMap((offense) => offense.corrections)
   }
 
+  private static callRubocop(ruby: string): RubocopResponse {
+    const rubocopOptions = env.HERB_LINTER_ERB_RUBOCOP_ADDITIONAL_OPTIONS || ""
+
+    // TODO: `|| true`???
+    let stdout = execSync(
+      `bundle exec rubocop --stdin stdin --require ${jsonCorrectorFormatterPath} --format JSONCorrectorFormatter --except ${this.disabledCops.join(",")} ${rubocopOptions} || true`,
+      { input: ruby },
+    )
+    return JSON.parse(stdout.toString())
+  }
+
+  private static extractRuby(node: Node): RubyAnalysis {
+    const visitor = new ExtractRubyVisitor()
+    visitor.visit(node)
+    return {
+      ruby: visitor.ruby,
+      mappings: visitor.mappings,
+    }
+  }
+
   private static translatePosition(
-    mapping: { ruby: Position; erb: Position }[],
+    mappings: PositionMapping[],
     rubyPosition: Position,
   ): Position {
     let relevantMapping
 
-    for (let i = 0; i < mapping.length; i++) {
+    for (let i = 0; i < mappings.length; i++) {
       if (
-        mapping[i].ruby.line > rubyPosition.line ||
-        (mapping[i].ruby.line === rubyPosition.line &&
-          mapping[i].ruby.column > rubyPosition.column)
+        mappings[i].ruby.line > rubyPosition.line ||
+        (mappings[i].ruby.line === rubyPosition.line &&
+          mappings[i].ruby.column > rubyPosition.column)
       ) {
-        relevantMapping = mapping[i - 1]
+        relevantMapping = mappings[i - 1]
         break
       }
     }
 
     if (!relevantMapping) {
-      relevantMapping = mapping[mapping.length - 1]
+      relevantMapping = mappings[mappings.length - 1]
     }
 
     const lineOffset = relevantMapping.erb.line - relevantMapping.ruby.line
@@ -128,13 +161,13 @@ export class Rubocop {
 }
 
 class ExtractRubyVisitor extends Visitor {
-  source: string
-  mapping: { ruby: Position; erb: Position }[]
+  ruby: string
+  mappings: PositionMapping[]
 
   constructor() {
     super()
-    this.source = ""
-    this.mapping = []
+    this.ruby = ""
+    this.mappings = []
   }
 
   visitERBContentNode(node: ERBContentNode): void {
@@ -204,14 +237,14 @@ class ExtractRubyVisitor extends Visitor {
       node.content.location.start.column + startTrimLength,
     )
 
-    this.mapping.push({ ruby: this.sourcePosition(), erb: erbPosition })
-    this.source += content + "\n"
+    this.mappings.push({ ruby: this.sourcePosition(), erb: erbPosition })
+    this.ruby += content + "\n"
 
     this.visitChildNodes(node)
   }
 
   private sourcePosition(): Position {
-    const lines = this.source.split("\n")
+    const lines = this.ruby.split("\n")
     const line = lines.length
     const column = lines[lines.length - 1].length
 
