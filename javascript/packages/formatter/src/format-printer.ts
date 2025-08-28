@@ -14,7 +14,7 @@ import {
   filterNodes,
   hasERBOutput,
 } from "@herb-tools/core"
-import { Rubocop } from "@herb-tools/rubocop"
+import { Rubocop, RubocopCorrection } from "@herb-tools/rubocop"
 import { Printer, IdentityPrinter } from "@herb-tools/printer"
 
 import {
@@ -54,7 +54,7 @@ import {
   Token,
 } from "@herb-tools/core"
 
-import type { ERBNode, RubocopCorrection } from "@herb-tools/core"
+import type { ERBNode } from "@herb-tools/core"
 import type { FormatOptions } from "./options.js"
 
 /**
@@ -811,7 +811,6 @@ export class FormatPrinter extends Printer {
     let content = node.content?.value ?? ""
 
     // claimed by einfach-nur
-    let relevantCorrections: any[] = []
     if (node.content) {
       for (const correction of this.rubocopCorrections) {
         if (
@@ -824,7 +823,7 @@ export class FormatPrinter extends Printer {
               correction.location.start.column -
                 node.content.location.start.column,
             ) +
-            correction.replacement +
+            correction.string +
             content.slice(
               correction.location.end.column -
                 node.content.location.start.column,
