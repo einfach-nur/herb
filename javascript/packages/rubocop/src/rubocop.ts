@@ -66,13 +66,6 @@ type RubyAnalysis = {
 }
 
 export class Rubocop {
-  static disabledCops = [
-    "Style/FrozenStringLiteralComment",
-    "Lint/Void",
-    "Layout/IndentationWidth",
-    "Layout/ArgumentAlignment",
-  ]
-
   static applyCorrectionsToNode(
     node: ERBNode,
     corrections: RubocopCorrection[],
@@ -81,26 +74,52 @@ export class Rubocop {
       return ""
     }
 
-    let content = node.content.value
+    const content = node.content
+    const nodeSource = content.value
+    const contentStart = node.content.location.start
 
-    for (const correction of corrections) {
-      if (
-        correction.location.start.line >= node.content.location.start.line &&
-        correction.location.end.line <= node.content.location.end.line
-      ) {
-        content =
-          content.slice(
-            0,
-            correction.location.start.column -
-              node.content.location.start.column,
-          ) +
-          correction.string +
-          content.slice(
-            correction.location.end.column - node.content.location.start.column,
-          )
-      }
+    // keep only corrections inside content
+    const relevantCorrections = corrections.filter((correction) => {
+      const startInContent =
+        correction.location.start.line > contentStart.line ||
+        (correction.location.start.line === contentStart.line &&
+          correction.location.start.column >= contentStart.column)
+
+      const endInContent =
+        correction.location.end.line < content.location.end.line ||
+        (correction.location.end.line === content.location.end.line &&
+          correction.location.end.column <= content.location.end.column)
+
+      return startInContent && endInContent
+    })
+
+    // translate to indices relative to content
+    const translated = relevantCorrections
+      .map((correction) => ({
+        ...correction,
+        startIndex: this.getRelativeIndexFromPosition(
+          nodeSource,
+          contentStart,
+          correction.location.start,
+        ),
+        endIndex: this.getRelativeIndexFromPosition(
+          nodeSource,
+          contentStart,
+          correction.location.end,
+        ),
+      }))
+      .sort((a, b) => a.startIndex - b.startIndex)
+
+    // apply corrections in reverse order to not shift indexes
+    let updated = nodeSource
+    for (let i = translated.length - 1; i >= 0; i--) {
+      updated =
+        updated.slice(0, translated[i].startIndex) +
+        translated[i].string +
+        updated.slice(translated[i].endIndex)
     }
-    return content
+
+    return updated
   }
 
   static offenses(node: Node): RubocopOffense[] {
@@ -136,12 +155,61 @@ export class Rubocop {
     return this.offenses(node).flatMap((offense) => offense.corrections)
   }
 
+  private static getRelativeIndexFromPosition(
+    source: string,
+    base: Position, // node.content.location.start (doc coords)
+    position: Position, // correction.location.* (doc coords)
+  ): number {
+    const lines = source.split("\n")
+
+    const lineDelta = position.line - base.line
+
+    // clamp outside content (defensive; your filter should prevent these)
+    if (lineDelta < 0) return 0
+    if (lineDelta > lines.length - 1) return source.length
+
+    if (lineDelta === 0) {
+      // same document line as content start -> just shift by base.column
+      const idx = position.column - base.column // end column is exclusive already
+      return Math.max(0, Math.min(source.length, idx))
+    }
+
+    // lineDelta >= 1:
+    // take the ENTIRE first content line (no subtraction by base.column!)
+    // plus its newline, then add full middle lines (+ newline each),
+    // then add column on the target line.
+    let index = lines[0].length + 1 // <-- FIXED: removed "- base.column"
+    for (let i = 1; i < lineDelta; i++) {
+      index += lines[i].length + 1
+    }
+    index += position.column
+    return index
+  }
+
+  private static DISABLED_COPS = [
+    "Layout/ArgumentAlignment",
+    "Layout/ArrayAlignment",
+    "Layout/AssignmentIndentation",
+    "Layout/ElseAlignment",
+    "Layout/EndAlignment",
+    "Layout/FirstArgumentIndentation",
+    "Layout/FirstArrayElementIndentation",
+    "Layout/FirstHashElementIndentation",
+    "Layout/IndentationConsistency",
+    "Layout/IndentationWidth",
+    "Layout/MultilineMethodCallIndentation",
+    "Lint/Void",
+    "Style/EmptyElse",
+    "Style/IdenticalConditionalBranches",
+    "Style/FrozenStringLiteralComment",
+  ]
+
   private static callRubocop(ruby: string): RubocopResponse {
     const rubocopOptions = env.HERB_LINTER_ERB_RUBOCOP_ADDITIONAL_OPTIONS || ""
 
     // TODO: `|| true`???
     let stdout = execSync(
-      `bundle exec rubocop --stdin stdin --require ${jsonCorrectorFormatterPath} --format JSONCorrectorFormatter --except ${this.disabledCops.join(",")} ${rubocopOptions} || true`,
+      `bundle exec rubocop --stdin stdin --require ${jsonCorrectorFormatterPath} --format JSONCorrectorFormatter --except ${this.DISABLED_COPS.join(",")} ${rubocopOptions} || true`,
       { input: ruby },
     )
     return JSON.parse(stdout.toString())
@@ -253,7 +321,8 @@ class ExtractRubyVisitor extends Visitor {
   }
 
   extractRuby(node: ERBNode): void {
-    if (!node.content) {
+    // TODO: this feels hacky
+    if (!node.content || node.tag_opening?.value == "<%#") {
       this.visitChildNodes(node)
       return
     }

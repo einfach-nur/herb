@@ -11,7 +11,9 @@
       },
       "dependsOn": [
         "@herb-tools/browser:build",
+        "@herb-tools/core:build",
         "@herb-tools/highlighter:build",
+        "@herb-tools/node-wasm:build",
         "@herb-tools/printer:build",
         "@herb-tools/rubocop:build"
       ]

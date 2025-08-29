@@ -14,6 +14,7 @@
         "@herb-tools/node:build",
         "@herb-tools/node-wasm:build",
         "@herb-tools/linter:build",
+        "@herb-tools/formatter:build",
         "@herb-tools/printer:build"
       ]
     },

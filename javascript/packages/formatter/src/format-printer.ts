@@ -810,9 +810,7 @@ export class FormatPrinter extends Printer {
     const close = node.tag_closing?.value ?? ""
     let content = node.content?.value ?? ""
 
-    // claimed by einfach-nur
     content = Rubocop.applyCorrectionsToNode(node, this.rubocopCorrections)
-    // claimed by einfach-nur end
 
     const inner = withFormatting ? this.formatERBContent(content) : content
 

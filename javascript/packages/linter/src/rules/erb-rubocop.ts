@@ -20,8 +20,10 @@ export class ERBRubocopRule extends ParserRule {
       rule: this.name,
       code: this.name,
       source: "Herb Linter",
-      message: offense.message,
-      severity: this.rubocopToLintSeverity[offense.severity],
+      message: offense.message + (offense.correctable ? " [correctable]" : ""),
+      // TODO: Stay with error severity for everything for now
+      severity: "error",
+      // severity: this.rubocopToLintSeverity[offense.severity],
       location: offense.location,
     }))
   }
