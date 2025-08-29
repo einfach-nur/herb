@@ -11,8 +11,8 @@
       },
       "dependsOn": [
         "@herb-tools/core:build",
-        "@herb-tools/printer:build",
         "@herb-tools/node-wasm:build",
+        "@herb-tools/printer:build",
         "@herb-tools/rubocop:build"
       ]
     },

@@ -3,7 +3,7 @@ import { Herb, isERBNode } from "@herb-tools/node-wasm"
 import { Rubocop } from "../src/rubocop.js"
 import dedent from "dedent"
 
-describe("Rubocop aplly corrections", () => {
+describe("Rubocop apply corrections", () => {
   beforeAll(async () => {
     await Herb.load()
     process.env.HERB_LINTER_ERB_RUBOCOP_ADDITIONAL_OPTIONS =
@@ -25,7 +25,7 @@ describe("Rubocop aplly corrections", () => {
     expect(formattedContent).toBe(" 'test' ")
   })
 
-  test("simple format", () => {
+  test("simple format newlines", () => {
     const result = Herb.parse(dedent`
         <%
           "test"
@@ -40,6 +40,6 @@ describe("Rubocop aplly corrections", () => {
       erbNode,
       corrections,
     )
-    expect(formattedContent).toBe("'test'")
+    expect(formattedContent).toBe("\n  'test'\n")
   })
 })
