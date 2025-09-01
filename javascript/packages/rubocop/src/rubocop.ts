@@ -78,7 +78,6 @@ export class Rubocop {
     const nodeSource = content.value
     const contentStart = node.content.location.start
 
-    // keep only corrections inside content
     const relevantCorrections = corrections.filter((correction) => {
       const startInContent =
         correction.location.start.line > contentStart.line ||
@@ -93,7 +92,6 @@ export class Rubocop {
       return startInContent && endInContent
     })
 
-    // translate to indices relative to content
     const translated = relevantCorrections
       .map((correction) => ({
         ...correction,
@@ -110,7 +108,6 @@ export class Rubocop {
       }))
       .sort((a, b) => a.startIndex - b.startIndex)
 
-    // apply corrections in reverse order to not shift indexes
     let updated = nodeSource
     for (let i = translated.length - 1; i >= 0; i--) {
       updated =
@@ -157,28 +154,31 @@ export class Rubocop {
 
   private static getRelativeIndexFromPosition(
     source: string,
-    base: Position, // node.content.location.start (doc coords)
-    position: Position, // correction.location.* (doc coords)
+    base: Position,
+    position: Position,
   ): number {
     const lines = source.split("\n")
-
     const lineDelta = position.line - base.line
 
-    // clamp outside content (defensive; your filter should prevent these)
-    if (lineDelta < 0) return 0
-    if (lineDelta > lines.length - 1) return source.length
+    if (lineDelta < 0) {
+        return 0
+    }
+
+    if (lineDelta > lines.length - 1) {
+        return source.length
+    }
 
     if (lineDelta === 0) {
       // same document line as content start -> just shift by base.column
-      const idx = position.column - base.column // end column is exclusive already
-      return Math.max(0, Math.min(source.length, idx))
+      const index = position.column - base.column // end column is exclusive already
+      return Math.max(0, Math.min(source.length, index))
     }
 
     // lineDelta >= 1:
     // take the ENTIRE first content line (no subtraction by base.column!)
     // plus its newline, then add full middle lines (+ newline each),
     // then add column on the target line.
-    let index = lines[0].length + 1 // <-- FIXED: removed "- base.column"
+    let index = lines[0].length + 1
     for (let i = 1; i < lineDelta; i++) {
       index += lines[i].length + 1
     }
