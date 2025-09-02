@@ -161,11 +161,11 @@ export class Rubocop {
     const lineDelta = position.line - base.line
 
     if (lineDelta < 0) {
-        return 0
+      return 0
     }
 
     if (lineDelta > lines.length - 1) {
-        return source.length
+      return source.length
     }
 
     if (lineDelta === 0) {
@@ -199,9 +199,11 @@ export class Rubocop {
     "Layout/IndentationWidth",
     "Layout/MultilineMethodCallIndentation",
     "Lint/Void",
+    "Rails/Presence",
     "Style/EmptyElse",
     "Style/IdenticalConditionalBranches",
     "Style/FrozenStringLiteralComment",
+    "Style/SymbolProc",
   ]
 
   private static callRubocop(ruby: string): RubocopResponse {
