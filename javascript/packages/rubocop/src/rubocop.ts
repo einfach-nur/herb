@@ -191,6 +191,7 @@ export class Rubocop {
     "Layout/ArrayAlignment",
     "Layout/AssignmentIndentation",
     "Layout/ElseAlignment",
+    "Layout/EmptyLineAfterGuardClause",
     "Layout/EndAlignment",
     "Layout/FirstArgumentIndentation",
     "Layout/FirstArrayElementIndentation",
